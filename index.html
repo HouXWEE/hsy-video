@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>video.mp4</title>
+  <title>演讲视频</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      margin: 0;
-      padding: 0;
       width: 100%;
       height: 100%;
       background-color: #0e0e0e;
@@ -34,32 +33,87 @@
     autoplay
     playsinline
     webkit-playsinline
+    x5-playsinline
     preload="auto"
     poster="./poster.jpg"
-    src="https://fastly.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4"
-  >
-    <source src="https://fastly.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4" type="video/mp4" />
-    <source src="https://gcore.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4" type="video/mp4" />
-    <source src="https://cdn.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4" type="video/mp4" />
-    <source src="./video.mp4" type="video/mp4" />
-  </video>
+  ></video>
+  <script src="https://cdn.staticfile.net/hls.js/1.5.15/hls.min.js" onerror="window.__noHlsJs=true"></script>
   <script>
     const v = document.getElementById("v");
-    const lines = [
+    const hlsUrls = [
+      "https://fastly.jsdelivr.net/gh/HouXWEE/hsy-video@main/hls/playlist.m3u8",
+      "https://gcore.jsdelivr.net/gh/HouXWEE/hsy-video@main/hls/playlist.m3u8",
+      "./hls/playlist.m3u8"
+    ];
+    const mp4Urls = [
       "https://fastly.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4",
       "https://gcore.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4",
-      "https://cdn.jsdelivr.net/gh/HouXWEE/hsy-video@main/video.mp4",
       "./video.mp4"
     ];
-    let idx = 0;
-    v.addEventListener("error", function() {
-      idx++;
-      if (idx < lines.length) {
-        v.src = lines[idx];
-        v.load();
+
+    function startPlayer() {
+      // 1. iOS / Safari / Mobile WeChat with native HLS support -> instant 400KB segment streaming
+      if (v.canPlayType("application/vnd.apple.mpegurl")) {
+        let i = 0;
+        v.src = hlsUrls[0];
+        v.addEventListener("error", function() {
+          i++;
+          if (i < hlsUrls.length) {
+            v.src = hlsUrls[i];
+            v.load();
+            v.play().catch(function(){});
+          } else {
+            v.src = mp4Urls[0];
+            v.load();
+          }
+        });
         v.play().catch(function(){});
+        return;
       }
-    });
+
+      // 2. Desktop / Android with hls.js -> instant 400KB segment streaming
+      if (window.Hls && Hls.isSupported()) {
+        let i = 0;
+        const hls = new Hls({ maxBufferLength: 15 });
+        hls.loadSource(hlsUrls[0]);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          v.play().catch(function(){});
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          if (data.fatal) {
+            i++;
+            if (i < hlsUrls.length) {
+              hls.loadSource(hlsUrls[i]);
+              hls.startLoad();
+            } else {
+              hls.destroy();
+              v.src = mp4Urls[0];
+              v.play().catch(function(){});
+            }
+          }
+        });
+        return;
+      }
+
+      // 3. Fallback direct MP4
+      let j = 0;
+      v.src = mp4Urls[0];
+      v.addEventListener("error", function() {
+        j++;
+        if (j < mp4Urls.length) {
+          v.src = mp4Urls[j];
+          v.load();
+          v.play().catch(function(){});
+        }
+      });
+      v.play().catch(function(){});
+    }
+
+    startPlayer();
+    document.addEventListener("WeixinJSBridgeReady", function() {
+      v.play().catch(function(){});
+    }, false);
   </script>
 </body>
 </html>
